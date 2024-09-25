@@ -1,0 +1,82 @@
+/*
+  Adapted from Example from ThingSpeak Library (Mathworks) 
+  Rui Santos & Sara Santos - Random Nerd Tutorials
+  Complete project details at https://RandomNerdTutorials.com/esp32-thingspeak-publish-arduino/
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+*/
+
+#include <WiFi.h>
+#include "ThingSpeak.h"
+#include <DHT.h>
+
+const char* ssid = "MYPHONE";   // your network SSID (name) 
+const char* password = "toybase@132";   // your network password
+
+WiFiClient  client;
+
+unsigned long myChannelNumber = 1; // Replace with your channel number
+const char * myWriteAPIKey = "36KQ6NKH6CSWG2NJ"; // Replace with your Write API Key
+
+// Timer variables
+unsigned long lastTime = 0;
+unsigned long timerDelay = 30000;
+
+// DHT sensor setup
+#define DHTPIN 4          // Pin where the DHT11 is connected
+#define DHTTYPE DHT11     // DHT 11
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(115200);  // Initialize serial
+  dht.begin();           // Initialize the DHT sensor
+
+  WiFi.mode(WIFI_STA);   
+
+  ThingSpeak.begin(client);  // Initialize ThingSpeak
+}
+
+void loop() {
+  if ((millis() - lastTime) > timerDelay) {
+    
+    // Connect or reconnect to WiFi
+    if(WiFi.status() != WL_CONNECTED){
+      Serial.print("Attempting to connect");
+      while(WiFi.status() != WL_CONNECTED){
+        WiFi.begin(ssid, password); 
+        delay(5000);     
+      } 
+      Serial.println("\nConnected.");
+    }
+
+    // Get a new temperature and humidity reading
+    float temperatureC = dht.readTemperature();
+    float humidity = dht.readHumidity();
+
+    // Check if any reads failed and exit early (to try again).
+    if (isnan(temperatureC) || isnan(humidity)) {
+      Serial.println("Failed to read from DHT sensor!");
+      return;
+    }
+
+    Serial.print("Temperature (ºC): ");
+    Serial.println(temperatureC);
+    Serial.print("Humidity (%): ");
+    Serial.println(humidity);
+
+    // Set the fields with the values
+    ThingSpeak.setField(1, temperatureC);
+    ThingSpeak.setField(2, humidity);
+
+    // Write to ThingSpeak
+    int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+
+    if(x == 200){
+      Serial.println("Channel update successful.");
+    }
+    else{
+      Serial.println("Problem updating channel. HTTP error code " + String(x));
+    }
+    lastTime = millis();
+  }
+}
